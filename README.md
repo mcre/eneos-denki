@@ -67,14 +67,16 @@ AWSのSESにて送信元と送信先をVerifyしておく。
         - main.main
     - タイムアウト
         - 3分
+    - メモリ
+        - 512MB
     - リトライ
         - 0回
     - 環境変数
-        - SAVE_UP_COIN_API_KEY
-        - SAVE_UP_COIN_API_SECRET
-        - SAVE_UP_COIN_SES_REGION
-        - SAVE_UP_COIN_MAIL_FROM
-        - SAVE_UP_COIN_MAIL_TO
+        - ENEOS_DENKI_SES_REGION
+        - ENEOS_DENKI_MAIL_FROM
+        - ENEOS_DENKI_MAIL_TO
+        - ENEOS_DENKI_USER_ID
+        - ENEOS_DENKI_USER_PASSWORD
     - トリガーを追加
         - CloudWatch Events
             - 新規ルールの作成
