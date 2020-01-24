@@ -19,6 +19,7 @@ from selenium.webdriver.common.by import By
 
 TIMEOUT = 10
 HOURLY_PATH = 'downloads/hourly/'
+HOURLY_YESTERDAY_PATH = 'downloads/hourly_yesterday/'
 DAILY_PATH = 'downloads/daily/'
 
 SES_REGION = os.environ.get('ENEOS_DENKI_SES_REGION', None)
@@ -43,7 +44,7 @@ def plain_mail(subject, body):
     return response
 
 
-def mail(subject, body, tmp_path):
+def mail(target_date, tmp_path):
     if not (SES_REGION and MAIL_FROM and MAIL_TO):
         return
     ses = AWS_SESSION.client('ses', SES_REGION)
@@ -53,12 +54,15 @@ def mail(subject, body, tmp_path):
         return
 
     msg = MIMEMultipart('mixed')
-    msg['Subject'] = subject
+    msg['Subject'] = f'[eneos-denki] {target_date.strftime("%Y-%m-%d")}'
     msg['From'] = MAIL_FROM
     msg['To'] = MAIL_TO
     msg_body = MIMEMultipart('alternative')
     textpart = MIMEText('画像'.encode('utf-8'), 'plain', 'utf-8')
-    htmlpart = MIMEText(body.encode('utf-8'), 'html', 'utf-8')
+    htmlpart = MIMEText(f'''
+        <p><img src="cid:hourly"/></p>
+        <p><img src="cid:daily"/></p>
+    '''.encode('utf-8'), 'html', 'utf-8')
     msg_body.attach(textpart)
     msg_body.attach(htmlpart)
     msg.attach(msg_body)
@@ -115,6 +119,11 @@ def download_files(target_date, selenium_options):
     find_element(By.XPATH, '//*[@id="frmDoViewTab1"]//input[@type="submit"]').click()
     find_element(By.XPATH, '//*[@id="tab1"]//input[@onclick="ouputCsv(\'preHour\')"]').click()
 
+    set_download_path(selenium_options['tmp_path'] + HOURLY_YESTERDAY_PATH)
+    driver.execute_script(f'document.getElementById("targetDateTab1").value = "{(target_date - dt.timedelta(days=1)).strftime("%Y/%m/%d")}"')
+    find_element(By.XPATH, '//*[@id="frmDoViewTab1"]//input[@type="submit"]').click()
+    find_element(By.XPATH, '//*[@id="tab1"]//input[@onclick="ouputCsv(\'preHour\')"]').click()
+
     find_element(By.ID, 'ui-id-2').click()
     set_download_path(selenium_options['tmp_path'] + DAILY_PATH)
     driver.execute_script(f'document.getElementById("targetDateTab3").value = "{target_date.strftime("%Y%m")}"')
@@ -137,6 +146,7 @@ def download_files(target_date, selenium_options):
 
     return {
         'hourly_path': get_file_path(selenium_options['tmp_path'] + HOURLY_PATH),
+        'hourly_yesterday_path': get_file_path(selenium_options['tmp_path'] + HOURLY_YESTERDAY_PATH),
         'daily_path': get_file_path(selenium_options['tmp_path'] + DAILY_PATH),
     }
 
@@ -165,15 +175,17 @@ def load_daily_data(path):
 
 def create_charts(paths, date, tmp_path):
     hourly_data = load_hourly_data(paths['hourly_path'])
+    hourly_yesterday_data = load_hourly_data(paths['hourly_yesterday_path'])
     daily_data = load_daily_data(paths['daily_path'])
 
     def xhour(index, x):
         return x['date'].strftime('%H') if index % 2 == 0 else None
 
-    chart = pygal.Line(fill=True, interpolate='cubic', style=pygal.style.RedBlueStyle)
+    chart = pygal.Line(interpolate='cubic')
     chart.title = f'{date.strftime("%Y/%m/%d")} Hourly Data (kWh)'
     chart.x_labels = [xhour(i, x) for i, x in enumerate(hourly_data)]
-    chart.add(None, [x['kwh'] for x in hourly_data], rounded_bars=5)
+    chart.add('KINOU', [x['kwh'] for x in hourly_data])
+    chart.add('OTOTOI', [x['kwh'] for x in hourly_yesterday_data])
     chart.render_to_png(tmp_path + 'hourly.png')
 
     chart = pygal.Bar(style=pygal.style.RedBlueStyle)
@@ -195,11 +207,7 @@ def main(event, context):
         paths = download_files(yesterday, selenium_options)
         create_charts(paths, yesterday, tmp_path)
 
-        body = f'''
-            <p><img src="cid:hourly"/></p>
-            <p><img src="cid:daily"/></p>
-        '''
-        mail(f'[eneos-denki] {yesterday.strftime("%Y-%m-%d")}', body, tmp_path)
+        mail(yesterday, tmp_path)
     except Exception as e:
         plain_mail('[eneos-denki] error', str(e))
         raise e
