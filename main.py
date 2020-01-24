@@ -184,8 +184,8 @@ def create_charts(paths, date, tmp_path):
     chart = pygal.Line(interpolate='cubic')
     chart.title = f'{date.strftime("%Y/%m/%d")} Hourly Data (kWh)'
     chart.x_labels = [xhour(i, x) for i, x in enumerate(hourly_data)]
-    chart.add('KINOU', [x['kwh'] for x in hourly_data])
-    chart.add('OTOTOI', [x['kwh'] for x in hourly_yesterday_data])
+    chart.add('KINOU', [x['kwh'] for x in hourly_data], fill=True, show_dots=False)
+    chart.add('OTOTOI', [x['kwh'] for x in hourly_yesterday_data], show_dots=False)
     chart.render_to_png(tmp_path + 'hourly.png')
 
     chart = pygal.Bar(style=pygal.style.RedBlueStyle)
